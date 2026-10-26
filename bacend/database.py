@@ -20,7 +20,7 @@ def init_db(conn: Connection):
         sender_id INTEGER,
         recipient_id INTEGER, 
         text TEXT,
-        time INTEGER,
+        time REAL,
         used_notepad INTEGER,
         is_readed INTEGER CHECK (is_readed IN (0, 1))
     )

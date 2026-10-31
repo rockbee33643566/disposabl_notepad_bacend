@@ -1,11 +1,10 @@
 import uvicorn
 
-from bacend.database import get_db_connection, init_db
-from bacend.api import app
+from bacend import app, database
 
 def main() -> None:
-    conn = get_db_connection()
-    init_db(conn=conn)
-    conn.close()
-
+    database.init_db()
     uvicorn.run(app=app, port=8080)
+
+if __name__ == "__main__": 
+    main()

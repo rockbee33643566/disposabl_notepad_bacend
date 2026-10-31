@@ -7,15 +7,15 @@ from fastapi import (
 
 import sqlite3
 
-from schemas.user import *
-from schemas.message import *
+from schemas import message, user
 from utl import (
     add_user,
     is_user_exists,
     authentication,
     create_message, 
     delete_read_messages,
-    get_messages
+    get_messages,
+    read_messages
 )
 
 app = FastAPI()
@@ -28,17 +28,17 @@ def integrity_error_handler(request: Request, exc: sqlite3.IntegrityError) -> No
     )
 
 @app.post(path="/user/create")
-def create_user(user: CreateUserPost) -> int: 
-    user_id = add_user(user=user)
-    return user_id
+def create_user(usr: user.CreateUserPost) -> int: 
+    user_id = add_user(user=usr)
+    return int(user_id)
 
 @app.get(path="user/is_exists")
 def is_user(id: int) -> bool:
     return is_user_exists(user_id=id)
 
 @app.post(path="message/send")
-def send_message(message: MessageSend):
-    sender_id = authentication(sender_hash=message.sender_hash)
+def send_message(msg: message.MessageSend):
+    sender_id = authentication(sender_hash=msg.sender_hash)
     if not is_user_exists(user_id=sender_id): 
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -48,8 +48,17 @@ def send_message(message: MessageSend):
     create_message(message=message)
 
 @app.get(path="message/get")
-def check_messages(user_hash: str) -> MessagesGet:
+def check_messages(user_hash: str) -> message.MessagesGet:
     recipient_id = authentication(sender_hash=user_hash)
 
     messages = get_messages(recipient_id=recipient_id)
-    return messages
+    if not messages.messages: 
+        return message.MessagesGet(
+            messages=[]
+        )
+    else:
+        read_messages(recipient_id)
+        delete_read_messages()
+
+        return messages
+        

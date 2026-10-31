@@ -14,11 +14,15 @@ def get_db_connection(
     conn = sqlite3.connect(name)
     conn.row_factory = sqlite3.Row
 
-    try: 
+    try:
         yield conn
-    finally:
+    except Exception:
+        conn.rollback()
+        raise
+    else:
         if commit:
             conn.commit()
+    finally:
         conn.close()
 
 def init_db(conn: Connection) -> None:

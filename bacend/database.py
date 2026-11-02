@@ -2,6 +2,7 @@ import sqlite3
 from sqlite3 import Connection
 from contextlib import contextmanager
 from collections.abc import Generator
+from pathlib import Path
 
 @contextmanager
 def get_db_connection(
@@ -9,9 +10,11 @@ def get_db_connection(
     commit: bool = False
 ) -> Generator[Connection, None, None]:
     if name is None:
-        name = "database.db"
+        path = str(
+            Path(__file__).parent.parent / "database.db"
+        )
 
-    conn = sqlite3.connect(name)
+    conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
 
     try:
@@ -25,23 +28,23 @@ def get_db_connection(
     finally:
         conn.close()
 
-def init_db(conn: Connection) -> None:
+def init_db() -> None:
     with get_db_connection(commit=True) as conn:
-        conn.execute('''
+        conn.execute('''--sql
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            user_name TEXT,
-            hash TEXT UNIQUE
+            user_name TEXT NOT NULL,
+            hash TEXT NOT NULL UNIQUE
         )
         ''')
-        conn.execute('''
+        conn.execute('''--sql
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sender_id INTEGER,
-            recipient_id INTEGER, 
-            text TEXT,
-            time REAL,
+            sender_id INTEGER NOT NULL,
+            recipient_id INTEGER NOT NULL, 
+            text TEXT NOT NULL,
+            time INTEGER NOT NULL,
             used_notepad INTEGER,
-            is_readed INTEGER CHECK (is_readed IN (0, 1))
+            is_readed INTEGER DEFAULT 0 CHECK (is_readed IN (0, 1))
         )
         ''')

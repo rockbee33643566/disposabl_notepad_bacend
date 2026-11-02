@@ -3,8 +3,8 @@ from fastapi import status, HTTPException
 import time 
 import sqlite3
 
-from schemas import message, user
-from database import get_db_connection
+from .schemas import message, user
+from .database import get_db_connection
 
 
 def add_user(user: user.CreateUserPost) -> int:
@@ -12,8 +12,9 @@ def add_user(user: user.CreateUserPost) -> int:
         cursor = conn.cursor()
         
         try:
-            cursor.execute(
-                "INSERT INTO (user_name, hash) VALUES (?, ?)",
+            cursor.execute("""--sql
+                    INSERT INTO users (user_name, hash) VALUES (?, ?)
+                """,
                 (user.name, user.hash)
             )
         except sqlite3.IntegrityError: 
@@ -68,53 +69,47 @@ def authentication(sender_hash: str) -> int:
         
     return row["id"]
 
-
 def create_message(message: message.MessageSend, sender_id: int) -> None:
-    event_time = time.time()
-
     with get_db_connection(commit=True) as conn:
         cursor = conn.cursor()
 
-        cursor.execute(
-            """INSERT INTO (
+        cursor.execute("""--sql
+            INSERT INTO messages (
                 sender_id, 
-                recipiend_id, 
+                recipient_id, 
                 text, 
                 time, 
-                used_notepad, 
-                is_readed
-            ) VALUES (?, ?, ?, ?, ?, 0)
+                used_notepad
+            ) VALUES (?, ?, ?, ?, ?)
             """, 
             (
                 sender_id,
                 message.recipient_id,
                 message.text,
-                event_time, 
+                int(time.time()), 
                 message.used_notepad
             )
         )
 
-def get_messages(recipient_id: int) -> message.MessagesGet:
+def get_messages(user_id: int) -> message.MessagesGet:
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute("""--sql
             SELECT
                 text,
-                recipient_id,
+                sender_id, 
                 used_notepad,
                 time
             FROM messages
             WHERE recipient_id = ?
                 AND is_readed = 0
             """,
-            (recipient_id, )
+            (user_id, )
         )
         messages = cursor.fetchall()
 
-    return message.MessagesGet(
-        messages=messages
-    )
+    return message.MessagesGet(messages=[dict(i) for i in messages])
 
 def read_messages(recipient_id: int) -> None:
     with get_db_connection(commit=True) as conn:
@@ -130,5 +125,5 @@ def delete_read_messages() -> None:
         cursor = conn.cursor()
 
         cursor.execute(
-            "DELETE FROPM messages WHERE is_readed=1"
+            "DELETE FROM messages WHERE is_readed=1"
         )

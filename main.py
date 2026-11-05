@@ -13,7 +13,9 @@ async def main() -> None:
     await database.init_db()
     logger.info("База данных инициализирована")
     logger.info("Запуск сервера на порту %s", port)
-    uvicorn.run(app=app, port=port)
+    config = uvicorn.Config(app=app, host="0.0.0.0", port=port)
+    server = uvicorn.Server(config)
+    await server.serve()
 
 if __name__ == "__main__": 
     asyncio.run(main())

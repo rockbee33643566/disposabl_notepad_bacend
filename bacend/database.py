@@ -1,43 +1,43 @@
-import sqlite3 
-from sqlite3 import Connection
-from contextlib import contextmanager
-from collections.abc import Generator
+import aiosqlite
 from pathlib import Path
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
 
-@contextmanager
-def get_db_connection(
+@asynccontextmanager
+async def get_db_connection(
     name: str | None = None,
     commit: bool = False
-) -> Generator[Connection, None, None]:
-    if name is None:
-        path = str(
-            Path(__file__).parent.parent / "database.db"
-        )
+) -> AsyncIterator[aiosqlite.Connection]:
+    path = (
+        name
+        if name is not None
+        else str(Path(__file__).parent.parent / "database.db")
+    )
 
-    conn = sqlite3.connect(path)
-    conn.row_factory = sqlite3.Row
+    conn = await aiosqlite.connect(path)
+    conn.row_factory = aiosqlite.Row
 
     try:
         yield conn
     except Exception:
-        conn.rollback()
+        await conn.rollback()
         raise
     else:
         if commit:
-            conn.commit()
+            await conn.commit()
     finally:
-        conn.close()
+        await conn.close()
 
-def init_db() -> None:
-    with get_db_connection(commit=True) as conn:
-        conn.execute('''--sql
+async def init_db() -> None:
+    async with get_db_connection(commit=True) as conn:
+        await conn.execute('''--sql
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT, 
             user_name TEXT NOT NULL,
             hash TEXT NOT NULL UNIQUE
         )
         ''')
-        conn.execute('''--sql
+        await conn.execute('''--sql
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sender_id INTEGER NOT NULL,

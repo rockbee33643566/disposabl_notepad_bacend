@@ -1,10 +1,19 @@
+import asyncio
+
 import uvicorn
 
 from bacend import app, database
+from bacend.logger import get_logger
 
-def main() -> None:
-    database.init_db()
-    uvicorn.run(app=app, port=8000)
+logger = get_logger(__name__)
+
+async def main() -> None:
+    port = 8000
+
+    await database.init_db()
+    logger.info("База данных инициализирована")
+    logger.info("Запуск сервера на порту %s", port)
+    uvicorn.run(app=app, port=port)
 
 if __name__ == "__main__": 
-    main()
+    asyncio.run(main())

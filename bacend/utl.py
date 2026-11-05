@@ -5,75 +5,80 @@ import sqlite3
 
 from .schemas import message, user
 from .database import get_db_connection
+from .logger import get_logger
+
+logger = get_logger(__name__)
 
 
-def add_user(user: user.CreateUserPost) -> int:
-    with get_db_connection(commit=True) as conn:
-        cursor = conn.cursor()
+async def add_user(user: user.CreateUserPost) -> int:
+    async with get_db_connection(commit=True) as conn:
+        cursor = await conn.cursor()
         
         try:
-            cursor.execute("""--sql
+            await cursor.execute("""--sql
                     INSERT INTO users (user_name, hash) VALUES (?, ?)
                 """,
                 (user.name, user.hash)
             )
         except sqlite3.IntegrityError: 
-            conn.rollback()
+            await conn.rollback()
+            logger.warning("Конфликт: хеш %s уже используется", user.hash)
 
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detailuser="Этот хеш уже используется. Сгенерируйте другой."
+                detail="Этот хеш уже используется. Сгенерируйте другой."
             )
         
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
+    async with get_db_connection() as conn:
+        cursor = await conn.cursor()
+        await cursor.execute(
             "SELECT id FROM users WHERE hash=?",
             (user.hash, )
         )
-        row = cursor.fetchone()
+        row = await cursor.fetchone()
 
     return row["id"]
 
-def is_user_exists(user_id: int) -> bool:
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
+async def is_user_exists(user_id: int) -> bool:
+    async with get_db_connection() as conn:
+        cursor = await conn.cursor()
 
-        cursor.execute(
+        await cursor.execute(
             "SELECT id FROM users WHERE id=?",
             (user_id, )
         )
 
-        row = cursor.fetchone()
+        row = await cursor.fetchone()
 
     if row is None:
         return False
     else:
         return True
 
-def authentication(sender_hash: str) -> int:
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
+async def authentication(sender_hash: str) -> int:
+    async with get_db_connection() as conn:
+        cursor = await conn.cursor()
         
-        cursor.execute(
+        await cursor.execute(
             "SELECT id, hash FROM users WHERE hash=?",
             (sender_hash, )
         )
 
-        row = cursor.fetchone()
+        row = await cursor.fetchone()
         if row is None:
+            logger.warning("Аутентификация не удалась: хеш %s не найден", sender_hash)
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, 
-                detail="Пользаватель не индефицирован."
+                detail="Пользователь не идентифицирован."
             )
         
     return row["id"]
 
-def create_message(message: message.MessageSend, sender_id: int) -> None:
-    with get_db_connection(commit=True) as conn:
-        cursor = conn.cursor()
+async def create_message(message: message.MessageSend, sender_id: int) -> int:
+    async with get_db_connection(commit=True) as conn:
+        cursor = await conn.cursor()
 
-        cursor.execute("""--sql
+        await cursor.execute("""--sql
             INSERT INTO messages (
                 sender_id, 
                 recipient_id, 
@@ -91,11 +96,13 @@ def create_message(message: message.MessageSend, sender_id: int) -> None:
             )
         )
 
-def get_messages(user_id: int) -> message.MessagesGet:
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
+        return cursor.lastrowid
 
-        cursor.execute("""--sql
+async def get_messages(user_id: int) -> message.MessagesGet:
+    async with get_db_connection() as conn:
+        cursor = await conn.cursor()
+
+        await cursor.execute("""--sql
             SELECT
                 text,
                 sender_id, 
@@ -107,23 +114,23 @@ def get_messages(user_id: int) -> message.MessagesGet:
             """,
             (user_id, )
         )
-        messages = cursor.fetchall()
+        messages = await cursor.fetchall()
 
     return message.MessagesGet(messages=[dict(i) for i in messages])
 
-def read_messages(recipient_id: int) -> None:
-    with get_db_connection(commit=True) as conn:
-        cursor = conn.cursor()
+async def read_messages(recipient_id: int) -> None:
+    async with get_db_connection(commit=True) as conn:
+        cursor = await conn.cursor()
 
-        cursor.execute(
+        await cursor.execute(
             "UPDATE messages SET is_readed = 1 WHERE recipient_id = ?",
             (recipient_id, )
         )
 
-def delete_read_messages() -> None:
-    with get_db_connection(commit=True) as conn:
-        cursor = conn.cursor()
+async def delete_read_messages() -> None:
+    async with get_db_connection(commit=True) as conn:
+        cursor = await conn.cursor()
 
-        cursor.execute(
+        await cursor.execute(
             "DELETE FROM messages WHERE is_readed=1"
         )
